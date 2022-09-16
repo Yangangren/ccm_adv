@@ -46,6 +46,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
                  latent_dim,
                  context_encoder,
                  context_encoder_target,
+                 context_encoder_adv,
                  policy,
                  **kwargs
     ):
@@ -54,6 +55,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         self.W = nn.Parameter(torch.rand(latent_dim, latent_dim))
         self.context_encoder = context_encoder
         self.context_encoder_target = context_encoder_target
+        self.context_encoder_adv = context_encoder_adv
         self.policy = policy #TanhGaussianpolicy
         self.use_next_state = kwargs['use_next_state']
         self.recurrent = kwargs['recurrent']
@@ -184,10 +186,13 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
             self.z_means = torch.mean(params, dim=1)
             #print(self.z_means.size())
         self.sample_z()
-    def infer_posterior_(self, context, ema=True):
-        ''' compute q(z|c) as a function of input context and sample new z from it'''
-        with torch.no_grad():
-            params = self.context_encoder_target(context)
+    def infer_posterior_(self, context, adv=False):
+        """ compute q(z|c) as a function of input context and sample new z from it"""
+        if adv:
+            params = self.context_encoder_adv(context)
+        else:
+            with torch.no_grad():
+                params = self.context_encoder_target(context)
 
         params = params.view(context.size(0), -1, self.context_encoder_target.output_size)
         # with probabilistic z, predict mean and variance of q(z | c)
@@ -228,7 +233,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
     def set_num_steps_total(self, n):
         self.policy.set_num_steps_total(n)
 
-    def encode(self, context, ema=False):
+    def encode(self, context, ema=False, adv=False):
         if ema==False:
 
             self.infer_posterior(context)
@@ -236,7 +241,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
 
             task_z = self.z
         else:
-            task_z = self.infer_posterior_(context, ema=True)
+            task_z = self.infer_posterior_(context, adv)
 
         #task_z = [z.repeat(b, 1) for z in task_z] #dim: t * [b,-1]?
         #task_z = torch.cat(task_z, dim=0)#[t*b, -1]
@@ -297,6 +302,22 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         logits = torch.matmul(z_a, Wz)  # (B,B)
         logits = logits - torch.max(logits, 1)[0][:, None]
         return logits
+
+    def adv_compute_logits(self, z_a, z_pos, z_neg):
+        Wz_pos = torch.matmul(self.W, z_pos.T)    # (z_dim,B)
+        Wz_neg = torch.matmul(self.W, z_neg.T)    # (z_dim,B)
+        logits_pos = torch.matmul(z_a, Wz_pos)    # (B,B)
+        logits_neg = torch.matmul(z_a, Wz_neg)    # (B,B)
+
+        # get final logits
+        diag = torch.diag(logits_pos)
+        # logits_pos_diag = torch.diag_embed(diag)
+        logits_neg[range(len(logits_neg)), range(len(logits_neg))] = diag
+        logits = logits_neg
+        logits = logits - torch.max(logits, 1)[0][:, None]
+
+        return logits
+
 
 class ExpPEARLAgent(nn.Module):#context encoder -> action output (during training and sampling)
 

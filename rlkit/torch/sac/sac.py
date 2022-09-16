@@ -108,6 +108,10 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             self.agent.context_encoder.parameters(),
             lr=context_lr,
         )
+        self.adv_encoder_optimizer = optimizer_class(
+            self.agent.context_encoder_adv.parameters(),
+            lr=context_lr,
+        )
         self.curl_optimizer = optimizer_class(
             self.agent.parameters(),
             lr=context_lr,
@@ -280,18 +284,22 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
     def _take_step(self, indices, context1, context1_, exp=False):
         z_a = self.agent.encode(context1)
         z_pos = self.agent.encode(context1_, ema=True)
-        logits = self.agent.compute_logits(z_a, z_pos)
+        z_neg = self.agent.encode(context1_, ema=True, adv=True)
+        logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
         labels = torch.arange(logits.shape[0]).long().to(ptu.device)
         loss = 10 * self.cross_entropy_loss(logits, labels)
+        adv_loss = - loss
 
         self.curl_optimizer.zero_grad()
         self.encoder_optimizer.zero_grad()
+        self.adv_encoder_optimizer.zero_grad()
 
         ptu.soft_update_from_to(
             self.agent.context_encoder, self.agent.context_encoder_target, self.encoder_tau
         )
 
-        loss.backward()
+        loss.backward(retain_graph=True)
+        adv_loss.backward()
         # self.curl_optimizer.step()
         # self.encoder_optimizer.step()
         num_tasks = len(indices)
@@ -378,6 +386,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         self.qf1_optimizer.step()
         self.qf2_optimizer.step()
         self.encoder_optimizer.step()
+        self.adv_encoder_optimizer.step()
         self.curl_optimizer.step()
         self.vf_optimizer.step()
         self.policy_optimizer.step()

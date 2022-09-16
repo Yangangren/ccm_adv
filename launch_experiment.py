@@ -57,6 +57,11 @@ def experiment(variant):
             output_size=context_encoder1,
 
         )
+        context_encoder_adv = encoder_model(
+            hidden_sizes=[400, 400, 400],
+            input_size=obs_dim + action_dim + reward_dim + obs_dim,
+            output_size=context_encoder1,
+        )
     else:
         context_encoder = encoder_model(
             hidden_sizes=[400, 400, 400],
@@ -115,6 +120,7 @@ def experiment(variant):
         latent_dim,
         context_encoder,
         context_encoder_target,
+        context_encoder_adv,
         policy,
         **variant['algo_params']
     )
