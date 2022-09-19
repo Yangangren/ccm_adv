@@ -44,6 +44,7 @@ def experiment(variant):
     net_size = variant['net_size']
     recurrent = variant['algo_params']['recurrent']
     use_next_state = variant['algo_params']['use_next_state']
+    full_adv = variant['algo_params']['full_adv']
     encoder_model = RNN if recurrent else MlpEncoder
     if use_next_state:
         context_encoder = encoder_model(
@@ -57,11 +58,24 @@ def experiment(variant):
             output_size=context_encoder1,
 
         )
-        context_encoder_adv = encoder_model(
-            hidden_sizes=[400, 400, 400],
-            input_size=obs_dim + action_dim + reward_dim + obs_dim,
-            output_size=context_encoder1,
-        )
+        if full_adv:
+            context_encoder_adv = encoder_model(
+                hidden_sizes=[400, 400, 400],
+                input_size=obs_dim + action_dim + reward_dim + obs_dim,
+                output_size=context_encoder1,
+            )
+        else:
+            context_encoder_adv_backbone = encoder_model(
+                hidden_sizes=[400, 400],
+                input_size=obs_dim + action_dim + reward_dim + obs_dim,
+                output_size=400,
+            )
+            context_encoder_adv_last_layer = encoder_model(
+                hidden_sizes=[400],
+                input_size=400,
+                output_size=context_encoder1,
+            )
+            context_encoder_adv = [context_encoder_adv_backbone, context_encoder_adv_last_layer]
     else:
         context_encoder = encoder_model(
             hidden_sizes=[400, 400, 400],
@@ -196,7 +210,7 @@ def deep_update_dict(fr, to):
 @click.argument('config', default=None)
 @click.option('--gpu', default=0)
 @click.option('--seed', default=6)
-@click.option('--exp_id', default='ccm')
+@click.option('--exp_id', default='ccm_adv')
 def main(config, gpu, seed, exp_id):
     setup_seed(seed)
     variant = default_config

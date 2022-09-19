@@ -49,6 +49,7 @@ default_config = dict(
         dump_eval_paths=False, # whether to save evaluation trajectories
         meta_episode_len=10,
         use_next_state=True,
+        full_adv=False,
     ),
     util_params=dict(
         base_log_dir='output',

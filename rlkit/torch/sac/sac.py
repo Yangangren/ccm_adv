@@ -34,6 +34,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             use_information_bottleneck=True,
             sparse_rewards=False,
             use_next_state=True,
+            full_adv=False,
             soft_target_tau=1e-2,
             plotter=None,
             render_eval_paths=False,
@@ -56,6 +57,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         self.policy_pre_activation_weight = policy_pre_activation_weight
         self.plotter = plotter
         self.render_eval_paths = render_eval_paths
+        self.full_adv = full_adv
 
         self.recurrent = recurrent
         self.qf_criterion = nn.MSELoss()
@@ -108,10 +110,16 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             self.agent.context_encoder.parameters(),
             lr=context_lr,
         )
-        self.adv_encoder_optimizer = optimizer_class(
-            self.agent.context_encoder_adv.parameters(),
-            lr=context_lr,
-        )
+        if full_adv:
+            self.adv_encoder_optimizer = optimizer_class(
+                self.agent.context_encoder_adv.parameters(),
+                lr=context_lr,
+            )
+        else:
+            self.adv_encoder_optimizer = optimizer_class(
+                self.agent.context_encoder_adv[1].parameters(),
+                lr=context_lr,
+            )
         self.curl_optimizer = optimizer_class(
             self.agent.parameters(),
             lr=context_lr,
@@ -219,7 +227,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             # stop backprop
             self.agent.detach_z()
 
-    def _do_training(self, indices, exp=False):
+    def _do_training(self, indices):
         mb_size = self.embedding_mini_batch_size
         num_updates = self.embedding_batch_size // mb_size
 
@@ -238,8 +246,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             context_ = self.prepare_encoder_data(obs_enc_, act_enc_, rewards_enc_, nobs_enc_)
 
             self._take_step(indices, context, context_)
-            if exp==True:
-                self._take_step_exp(indices, context)
+
             # stop backprop
             self.agent.detach_z()
 
@@ -294,6 +301,8 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         self.encoder_optimizer.zero_grad()
         self.adv_encoder_optimizer.zero_grad()
 
+        if not self.full_adv:
+            ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv[0])
         ptu.soft_update_from_to(
             self.agent.context_encoder, self.agent.context_encoder_target, self.encoder_tau
         )

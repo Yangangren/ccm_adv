@@ -62,6 +62,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         self.use_ib = kwargs['use_information_bottleneck']
         #self.use_ib = False
         self.sparse_rewards = kwargs['sparse_rewards']
+        self.full_adv = kwargs['full_adv']
         self.cross_entropy_loss = nn.CrossEntropyLoss()
         # initialize buffers for z dist and z
         # use buffers so latent context can be saved along with model weights
@@ -189,7 +190,12 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
     def infer_posterior_(self, context, adv=False):
         """ compute q(z|c) as a function of input context and sample new z from it"""
         if adv:
-            params = self.context_encoder_adv(context)
+            if self.full_adv:
+                params = self.context_encoder_adv(context)
+            else:
+                with torch.no_grad():
+                    hidden_state_from_target = self.context_encoder_adv[0](context)
+                params = self.context_encoder_adv[1](hidden_state_from_target)
         else:
             with torch.no_grad():
                 params = self.context_encoder_target(context)

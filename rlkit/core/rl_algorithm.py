@@ -236,7 +236,7 @@ class MetaRLAlgorithm(metaclass=abc.ABCMeta):
             for train_step in range(self.num_train_steps_per_itr):
                 indices = np.random.choice(self.train_tasks, self.meta_batch)
                 if it_ > 0:
-                    self._do_training(indices, exp=True)
+                    self._do_training(indices)
                 else:
                     self._do_training(indices)
                 self._n_train_steps_total += 1
