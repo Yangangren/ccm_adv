@@ -141,15 +141,13 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             net.to(device)
 
     ##### Data handling #####
-    def sample_data(self, indices, exp = False, encoder=False):
+    def sample_data(self, indices, encoder=False):
         ''' sample data from replay buffers to construct a training meta-batch '''
         # collect data from multiple tasks for the meta-batch
         obs, actions, rewards, rewards_exp, next_obs, terms, z_previous = [], [], [], [], [], [], []
         for idx in indices:
             if encoder:
                 batch = ptu.np_to_pytorch_batch(self.enc_replay_buffer.random_batch(idx, batch_size=self.embedding_batch_size, sequence=self.recurrent))
-            elif exp:
-                batch = ptu.np_to_pytorch_batch(self.replay_buffer_exp.random_batch(idx, batch_size=self.batch_size))
             else:
                 batch = ptu.np_to_pytorch_batch(self.replay_buffer.random_batch(idx, batch_size=self.batch_size))
             o = batch['observations'][None, ...]
@@ -288,7 +286,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         ptu.soft_update_from_to(
             self.agent.context_encoder, self.agent.context_encoder_target, self.encoder_tau
         )
-    def _take_step(self, indices, context1, context1_, exp=False):
+    def _take_step(self, indices, context1, context1_):
         z_a = self.agent.encode(context1)
         z_pos = self.agent.encode(context1_, ema=True)
         z_neg = self.agent.encode(context1_, ema=True, adv=True)
@@ -315,10 +313,6 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         explore_reward = 0
         # data is (task, batch, feat)
         obs, actions, rewards, next_obs, terms, rewards_exp, z_previous = self.sample_data(indices)
-        if exp==True:
-            obs_, actions_, rewards_, next_obs_, terms_, rewards_exp_, z_previous_ = self.sample_data(indices, exp=True)
-        # run inference in networks
-            explore_reward = rewards_exp_ - rewards_
         policy_outputs, task_z = self.agent(obs, context1)
         new_actions, policy_mean, policy_log_std, log_pi = policy_outputs[:4]
 
@@ -446,7 +440,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         num_tasks = len(indices)
 
         # data is (task, batch, feat)
-        obs, actions, rewards, next_obs, terms, rewards_exp, z_previous = self.sample_data(indices, exp=True)
+        obs, actions, rewards, next_obs, terms, rewards_exp, z_previous = self.sample_data(indices)
         _, task_z = self.agent(obs, context)
         t, b, _ = obs.size()
         task_z = task_z.view(t * b, -1)
