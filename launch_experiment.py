@@ -190,7 +190,7 @@ def deep_update_dict(fr, to):
 @click.argument('config', default=None)
 @click.option('--gpu', default=0)
 @click.option('--seed', default=6)
-@click.option('--exp_id', default='ccm')
+@click.option('--exp_id', default='ccm_no_sparse')
 def main(config, gpu, seed, exp_id):
     setup_seed(seed)
     variant = default_config
