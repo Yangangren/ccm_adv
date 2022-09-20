@@ -8,6 +8,7 @@ import numpy as np
 import click
 import json
 import torch
+import random
 
 from rlkit.envs import ENVS
 from rlkit.envs.wrappers import NormalizedBoxEnv
@@ -19,6 +20,12 @@ from rlkit.launchers.launcher_util import setup_logger
 import rlkit.torch.pytorch_util as ptu
 from configs.default import default_config
 
+def setup_seed(seed):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    # torch.backends.cudnn.deterministic = True
 
 def experiment(variant):
 
@@ -36,6 +43,7 @@ def experiment(variant):
     reward_dim = 1
     net_size = variant['net_size']
     recurrent = variant['algo_params']['recurrent']
+    full_adv = variant['algo_params']['full_adv']
     encoder_model = RecurrentEncoder if recurrent else MlpEncoder
 
     context_encoder = encoder_model(
@@ -49,6 +57,24 @@ def experiment(variant):
         output_size=context_encoder1,
 
     )
+    if full_adv:
+        context_encoder_adv = encoder_model(
+            hidden_sizes=[400, 400, 400],
+            input_size=obs_dim + action_dim + reward_dim + obs_dim,
+            output_size=context_encoder1,
+        )
+    else:
+        context_encoder_adv_backbone = encoder_model(
+            hidden_sizes=[400, 400],
+            input_size=obs_dim + action_dim + reward_dim + obs_dim,
+            output_size=400,
+        )
+        context_encoder_adv_last_layer = encoder_model(
+            hidden_sizes=[400],
+            input_size=400,
+            output_size=context_encoder1,
+        )
+        context_encoder_adv = [context_encoder_adv_backbone, context_encoder_adv_last_layer]
 
     forwardenc = encoder_model(
         hidden_sizes=[200, 200, 200],
@@ -87,6 +113,7 @@ def experiment(variant):
         latent_dim,
         context_encoder,
         context_encoder_target,
+        context_encoder_adv,
         forwardenc,
         backwardenc,
         policy,
@@ -124,7 +151,8 @@ def experiment(variant):
 
     # create logging directory
     # TODO support Docker
-    exp_id = 'debug' if DEBUG else None
+    # exp_id = 'debug' if DEBUG else None
+    exp_id = variant['exp_id']
     experiment_log_dir = setup_logger(variant['env_name'], variant=variant, exp_id=exp_id, base_log_dir=variant['util_params']['base_log_dir'])
 
     # optionally save eval trajectories as pkl files
@@ -147,18 +175,19 @@ def deep_update_dict(fr, to):
 
 @click.command()
 @click.argument('config', default='configs/cheetah-mass.json')
-@click.option('--gpu', default=3)
-@click.option('--docker', is_flag=True, default=False)
-@click.option('--debug', is_flag=True, default=False)
-def main(config, gpu, docker, debug):
-
+@click.option('--gpu', default=0)
+@click.option('--seed', default=6)
+@click.option('--exp_id', default='ccm_adv')
+def main(config, gpu, seed, exp_id):
+    setup_seed(seed)
     variant = default_config
     if config:
         with open(os.path.join(config)) as f:
             exp_params = json.load(f)
         variant = deep_update_dict(exp_params, variant)
     variant['util_params']['gpu_id'] = gpu
-
+    variant['exp_id'] = exp_id
+    variant['seed'] = seed
     experiment(variant)
 
 if __name__ == "__main__":

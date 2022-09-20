@@ -46,6 +46,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
                  latent_dim,
                  context_encoder,
                  context_encoder_target,
+                 context_encoder_adv,
                  forwardenc,
                  backwardenc,
                  policy,
@@ -56,6 +57,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         self.W = nn.Parameter(torch.rand(latent_dim, latent_dim))
         self.context_encoder = context_encoder
         self.context_encoder_target = context_encoder_target
+        self.context_encoder_adv = context_encoder_adv
         self.forwardenc = forwardenc
         self.backwardenc = backwardenc
         self.policy = policy #TanhGaussianpolicy
@@ -64,7 +66,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         #self.use_ib = kwargs['use_information_bottleneck']
         self.use_ib = False
         self.sparse_rewards = kwargs['sparse_rewards']
-
+        self.full_adv = kwargs['full_adv']
         # initialize buffers for z dist and z
         # use buffers so latent context can be saved along with model weights
         self.register_buffer('z', torch.zeros(1, latent_dim))
@@ -114,28 +116,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
             self.context = data
         else:
             self.context = torch.cat([self.context, data], dim=1)
-    def infer_posterior_(self, context, ema=True):
-        ''' compute q(z|c) as a function of input context and sample new z from it'''
-        with torch.no_grad():
-            params = self.context_encoder_target(context)
 
-        params = params.view(context.size(0), -1, self.context_encoder_target.output_size)
-        # with probabilistic z, predict mean and variance of q(z | c)
-        if self.use_ib:#information bottleneck
-            mu = params[..., :self.latent_dim]
-            sigma_squared = F.softplus(params[..., self.latent_dim:])
-            z_params = [_product_of_gaussians(m, s) for m, s in zip(torch.unbind(mu), torch.unbind(sigma_squared))]
-            z_means = torch.stack([p[0] for p in z_params])
-            z_vars = torch.stack([p[1] for p in z_params])
-            posteriors = [torch.distributions.Normal(m, torch.sqrt(s)) for m, s in
-                          zip(torch.unbind(z_means), torch.unbind(z_vars))]
-            z = [d.rsample() for d in posteriors]
-            task_z = torch.stack(z)
-        # sum rather than product of gaussians structure
-        else:
-            z_means = torch.mean(params, dim=1)
-            task_z = z_means
-        return task_z
     def compute_kl_div(self):
         ''' compute KL( q(z|c) || r(z) ) '''
         prior = torch.distributions.Normal(ptu.zeros(self.latent_dim), ptu.ones(self.latent_dim))
@@ -164,6 +145,36 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
             self.z_means = torch.mean(params, dim=1)
             #print(self.z_means.size())
         self.sample_z()
+    def infer_posterior_(self, context, adv=False):
+        """ compute q(z|c) as a function of input context and sample new z from it"""
+        if adv:
+            if self.full_adv:
+                params = self.context_encoder_adv(context)
+            else:
+                with torch.no_grad():
+                    hidden_state_from_target = self.context_encoder_adv[0](context)
+                params = self.context_encoder_adv[1](hidden_state_from_target)
+        else:
+            with torch.no_grad():
+                params = self.context_encoder_target(context)
+
+        params = params.view(context.size(0), -1, self.context_encoder_target.output_size)
+        # with probabilistic z, predict mean and variance of q(z | c)
+        if self.use_ib:#information bottleneck
+            mu = params[..., :self.latent_dim]
+            sigma_squared = F.softplus(params[..., self.latent_dim:])
+            z_params = [_product_of_gaussians(m, s) for m, s in zip(torch.unbind(mu), torch.unbind(sigma_squared))]
+            z_means = torch.stack([p[0] for p in z_params])
+            z_vars = torch.stack([p[1] for p in z_params])
+            posteriors = [torch.distributions.Normal(m, torch.sqrt(s)) for m, s in
+                          zip(torch.unbind(z_means), torch.unbind(z_vars))]
+            z = [d.rsample() for d in posteriors]
+            task_z = torch.stack(z)
+        # sum rather than product of gaussians structure
+        else:
+            z_means = torch.mean(params, dim=1)
+            task_z = z_means
+        return task_z
 
     def sample_z(self):
         if self.use_ib:
@@ -183,7 +194,8 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
 
     def set_num_steps_total(self, n):
         self.policy.set_num_steps_total(n)
-    def encode(self, context, ema=False):
+
+    def encode(self, context, ema=False, adv=False):
         if ema==False:
 
             self.infer_posterior(context)
@@ -191,7 +203,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
 
             task_z = self.z
         else:
-            task_z = self.infer_posterior_(context, ema=True)
+            task_z = self.infer_posterior_(context, adv)
 
         #task_z = [z.repeat(b, 1) for z in task_z] #dim: t * [b,-1]?
         #task_z = torch.cat(task_z, dim=0)#[t*b, -1]
@@ -227,7 +239,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
 
     @property
     def networks(self):
-        return [self.context_encoder, self.policy, self.forwardenc, self.backwardenc]
+        return [self.context_encoder, self.context_encoder_adv[0],self.policy, self.forwardenc, self.backwardenc]
 
 
     def compute_logits(self, z_a, z_pos):
@@ -241,4 +253,19 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         Wz = torch.matmul(self.W, z_pos.T)  # (z_dim,B)
         logits = torch.matmul(z_a, Wz)  # (B,B)
         logits = logits - torch.max(logits, 1)[0][:, None]
+        return logits
+
+    def adv_compute_logits(self, z_a, z_pos, z_neg):
+        Wz_pos = torch.matmul(self.W, z_pos.T)    # (z_dim,B)
+        Wz_neg = torch.matmul(self.W, z_neg.T)    # (z_dim,B)
+        logits_pos = torch.matmul(z_a, Wz_pos)    # (B,B)
+        logits_neg = torch.matmul(z_a, Wz_neg)    # (B,B)
+
+        # get final logits
+        diag = torch.diag(logits_pos)
+        # logits_pos_diag = torch.diag_embed(diag)
+        logits_neg[range(len(logits_neg)), range(len(logits_neg))] = diag
+        logits = logits_neg
+        logits = logits - torch.max(logits, 1)[0][:, None]
+
         return logits

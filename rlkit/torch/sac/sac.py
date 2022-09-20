@@ -9,7 +9,7 @@ import rlkit.torch.pytorch_util as ptu
 from rlkit.core.eval_util import create_stats_ordered_dict
 from rlkit.core.rl_algorithm import MetaRLAlgorithm
 
-weight1 = 10
+
 class PEARLSoftActorCritic(MetaRLAlgorithm):
     def __init__(
             self,
@@ -33,7 +33,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             recurrent=False,
             use_information_bottleneck=True,
             sparse_rewards=False,
-
+            full_adv=False,
             soft_target_tau=1e-2,
             plotter=None,
             render_eval_paths=False,
@@ -54,6 +54,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         self.policy_pre_activation_weight = policy_pre_activation_weight
         self.plotter = plotter
         self.render_eval_paths = render_eval_paths
+        self.full_adv = full_adv
 
         self.recurrent = recurrent
         self.latent_dim = latent_dim
@@ -91,6 +92,16 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             self.agent.context_encoder.parameters(),
             lr=context_lr,
         )
+        if full_adv:
+            self.adv_encoder_optimizer = optimizer_class(
+                self.agent.context_encoder_adv.parameters(),
+                lr=context_lr,
+            )
+        else:
+            self.adv_encoder_optimizer = optimizer_class(
+                self.agent.context_encoder_adv[1].parameters(),
+                lr=context_lr,
+            )
         self.curl_optimizer = optimizer_class(
             self.agent.parameters(),
             lr=context_lr,
@@ -254,11 +265,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         z_pos = self.agent.encode(context1_, ema=True)
         logits = self.agent.compute_logits(z_a, z_pos)
         labels = torch.arange(logits.shape[0]).long().to(ptu.device)
-        contrastive_loss = self.cross_entropy_loss(logits, labels)
-
-
-
-
+        contrastive_loss = 10 * self.cross_entropy_loss(logits, labels)
 
         self.curl_optimizer.zero_grad()
         self.encoder_optimizer.zero_grad()
@@ -270,7 +277,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             kl_loss = self.kl_lambda / 1000 * kl_div
             kl_loss.backward(retain_graph=True)
 
-        loss = cadm_loss + weight1 * contrastive_loss
+        loss = cadm_loss + contrastive_loss
         loss.backward()
         # self.curl_optimizer.step()
         self.curl_optimizer.step()
@@ -305,12 +312,15 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
 
         z_a = self.agent.encode(context1)
         z_pos = self.agent.encode(context1_, ema=True)
-        logits = self.agent.compute_logits(z_a, z_pos)
+        z_neg = self.agent.encode(context1_, ema=True, adv=True)
+        logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
         labels = torch.arange(logits.shape[0]).long().to(ptu.device)
-        contrastive_loss = self.cross_entropy_loss(logits, labels)
+        contrastive_loss = 10 * self.cross_entropy_loss(logits, labels)
+        adv_loss = - contrastive_loss
 
         self.curl_optimizer.zero_grad()
         self.encoder_optimizer.zero_grad()
+        self.adv_encoder_optimizer.zero_grad()
         self.forward_optimizer.zero_grad()
         self.backward_optimizer.zero_grad()
 
@@ -319,13 +329,16 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             kl_loss = self.kl_lambda / 1000 * kl_div
             kl_loss.backward(retain_graph=True)
 
-        loss = cadm_loss + weight1 * contrastive_loss
-        loss.backward()
+        loss = cadm_loss + contrastive_loss
+        loss.backward(retain_graph=True)
+        adv_loss.backward()
         # self.curl_optimizer.step()
         # self.curl_optimizer.step()
         # self.encoder_optimizer.step()
         # self.forward_optimizer.step()
         # self.backward_optimizer.step()
+        if not self.full_adv:
+            ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv[0])
         ptu.soft_update_from_to(
             self.agent.context_encoder, self.agent.context_encoder_target, self.encoder_tau
         )
@@ -395,6 +408,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
 
         self.curl_optimizer.step()
         self.encoder_optimizer.step()
+        self.adv_encoder_optimizer.step()
         self.forward_optimizer.step()
         self.backward_optimizer.step()
         self.qf1_optimizer.step()

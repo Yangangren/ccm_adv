@@ -46,6 +46,7 @@ default_config = dict(
         num_exp_traj_eval=1, # how many exploration trajs to collect before beginning posterior sampling at test time
         recurrent=False, # recurrent or permutation-invariant encoder
         dump_eval_paths=False, # whether to save evaluation trajectories
+        full_adv=False,
     ),
     util_params=dict(
         base_log_dir='output',
