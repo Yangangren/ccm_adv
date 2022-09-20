@@ -322,10 +322,10 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         loss = cadm_loss + weight1 * contrastive_loss
         loss.backward()
         # self.curl_optimizer.step()
-        self.curl_optimizer.step()
-        self.encoder_optimizer.step()
-        self.forward_optimizer.step()
-        self.backward_optimizer.step()
+        # self.curl_optimizer.step()
+        # self.encoder_optimizer.step()
+        # self.forward_optimizer.step()
+        # self.backward_optimizer.step()
         ptu.soft_update_from_to(
             self.agent.context_encoder, self.agent.context_encoder_target, self.encoder_tau
         )
@@ -359,8 +359,8 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         q_target = rewards_flat + (1. - terms_flat) * self.discount * target_v_values
         qf_loss = torch.mean((q1_pred - q_target) ** 2) + torch.mean((q2_pred - q_target) ** 2)
         qf_loss.backward()
-        self.qf1_optimizer.step()
-        self.qf2_optimizer.step()
+        # self.qf1_optimizer.step()
+        # self.qf2_optimizer.step()
 
         # compute min Q on the new actions
         min_q_new_actions = self._min_q(obs, new_actions, task_z)
@@ -370,7 +370,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         vf_loss = self.vf_criterion(v_pred, v_target.detach())
         self.vf_optimizer.zero_grad()
         vf_loss.backward()
-        self.vf_optimizer.step()
+        # self.vf_optimizer.step()
         self._update_target_network()
 
         # policy update
@@ -392,6 +392,14 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
 
         self.policy_optimizer.zero_grad()
         policy_loss.backward()
+
+        self.curl_optimizer.step()
+        self.encoder_optimizer.step()
+        self.forward_optimizer.step()
+        self.backward_optimizer.step()
+        self.qf1_optimizer.step()
+        self.qf2_optimizer.step()
+        self.vf_optimizer.step()
         self.policy_optimizer.step()
 
         # save some statistics for eval
