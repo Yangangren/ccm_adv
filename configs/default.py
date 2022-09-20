@@ -49,7 +49,7 @@ default_config = dict(
     ),
     util_params=dict(
         base_log_dir='output',
-        use_gpu=False,
+        use_gpu=True,
         gpu_id=3,
         debug=False, # debugging triggers printing and writes logs to debug directory
         docker=False, # TODO docker is not yet supported
