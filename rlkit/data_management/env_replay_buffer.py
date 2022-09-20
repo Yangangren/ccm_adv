@@ -10,7 +10,6 @@ class MultiTaskReplayBuffer(object):
             max_replay_buffer_size,
             env,
             tasks,
-            latent_dim=0,
     ):
         """
         :param max_replay_buffer_size:
@@ -20,12 +19,10 @@ class MultiTaskReplayBuffer(object):
         self.env = env
         self._ob_space = env.observation_space
         self._action_space = env.action_space
-        self._z_space = latent_dim
         self.task_buffers = dict([(idx, SimpleReplayBuffer(
             max_replay_buffer_size=max_replay_buffer_size,
             observation_dim=get_dim(self._ob_space),
             action_dim=get_dim(self._action_space),
-            latent_dim=latent_dim,
         )) for idx in tasks])
 
 

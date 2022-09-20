@@ -30,8 +30,9 @@ def sim_policy(variant, path_to_exp, num_trajs=1, deterministic=False, save_vide
     '''
 
     # create multi-task environment and sample tasks
-    env = CameraWrapper(NormalizedBoxEnv(ENVS[variant['env_name']](**variant['env_params'])), variant['util_params']['gpu_id'])
+    env = NormalizedBoxEnv(ENVS[variant['env_name']](**variant['env_params2']))
     tasks = env.get_all_task_idx()
+    print(tasks)
     obs_dim = int(np.prod(env.observation_space.shape))
     action_dim = int(np.prod(env.action_space.shape))
     eval_tasks=list(tasks[-variant['n_eval_tasks']:])
@@ -39,16 +40,35 @@ def sim_policy(variant, path_to_exp, num_trajs=1, deterministic=False, save_vide
 
     # instantiate networks
     latent_dim = variant['latent_size']
-    context_encoder = latent_dim * 2 if variant['algo_params']['use_information_bottleneck'] else latent_dim
+    context_encoder1 = latent_dim * 2 if variant['algo_params']['use_information_bottleneck'] else latent_dim
     reward_dim = 1
     net_size = variant['net_size']
     recurrent = variant['algo_params']['recurrent']
     encoder_model = RecurrentEncoder if recurrent else MlpEncoder
 
     context_encoder = encoder_model(
-        hidden_sizes=[150, 150],
-        input_size=obs_dim + action_dim + reward_dim,
-        output_size=context_encoder,
+        hidden_sizes=[400, 400, 400],
+        input_size=obs_dim * 2  + action_dim + reward_dim,
+        output_size=context_encoder1,
+    )
+    context_encoder_target = encoder_model(
+        hidden_sizes=[400, 400, 400],
+        input_size=obs_dim + action_dim + reward_dim + obs_dim,
+        output_size=context_encoder1,
+
+    )
+
+    forwardenc = encoder_model(
+        hidden_sizes=[200, 200, 200],
+        input_size=obs_dim + action_dim + latent_dim,
+        output_size=obs_dim + reward_dim,
+
+    )
+    backwardenc = encoder_model(
+        hidden_sizes=[200, 200, 200],
+        input_size=obs_dim + action_dim + latent_dim,
+        output_size=obs_dim,
+
     )
     policy = TanhGaussianPolicy(
         hidden_sizes=[net_size, net_size],
@@ -59,6 +79,9 @@ def sim_policy(variant, path_to_exp, num_trajs=1, deterministic=False, save_vide
     agent = PEARLAgent(
         latent_dim,
         context_encoder,
+        context_encoder_target,
+        forwardenc,
+        backwardenc,
         policy,
         **variant['algo_params']
     )
@@ -73,18 +96,26 @@ def sim_policy(variant, path_to_exp, num_trajs=1, deterministic=False, save_vide
     # loop through tasks collecting rollouts
     all_rets = []
     video_frames = []
-    for idx in eval_tasks:
+    zs = dict([(i, []) for i in range(10)])
+
+    for idx in tasks:
         env.reset_task(idx)
         agent.clear_z()
         paths = []
         for n in range(num_trajs):
+            zs[idx].append(agent.z_means)
             path = rollout(env, agent, max_path_length=variant['algo_params']['max_path_length'], accum_context=True, save_frames=save_video)
-            paths.append(path)
+
             if save_video:
                 video_frames += [t['frame'] for t in path['env_infos']]
             if n >= variant['algo_params']['num_exp_traj_eval']:
                 agent.infer_posterior(agent.context)
         all_rets.append([sum(p['rewards']) for p in paths])
+
+    with open('z.pkl', 'wb') as f:
+        pickle.dump(zs, f)
+
+
 
     if save_video:
         # save frames to file temporarily
@@ -110,9 +141,9 @@ def sim_policy(variant, path_to_exp, num_trajs=1, deterministic=False, save_vide
 @click.command()
 @click.argument('config', default=None)
 @click.argument('path', default=None)
-@click.option('--num_trajs', default=3)
+@click.option('--num_trajs', default=30)
 @click.option('--deterministic', is_flag=True, default=False)
-@click.option('--video', is_flag=True, default=True)
+@click.option('--video', is_flag=True, default=False)
 def main(config, path, num_trajs, deterministic, video):
     variant = default_config
     if config:

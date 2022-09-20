@@ -1,7 +1,7 @@
 # default PEARL experiment settings
 # all experiments should modify these settings only as needed
 default_config = dict(
-    exp_name='newCL-PEARL',
+    exp_name='CL-DYN',
     env_name='humanoid-dir',
     n_train_tasks=2,
     n_eval_tasks=2,
@@ -14,15 +14,14 @@ default_config = dict(
         randomize_tasks=True, # shuffle the tasks after creating them
     ),
     env_params2=dict(
+        env_type="test",
         n_tasks=25,
-        randomize_tasks=True,
-        env_type='test',
     ),
     algo_params=dict(
         meta_batch=16, # number of tasks to average the gradient across
         num_iterations=500, # number of data sampling / training iterates
         num_initial_steps=2000, # number of transitions collected per task before training
-        num_tasks_sample=10, # number of randomly sampled tasks to collect data for each iteration
+        num_tasks_sample=7, # number of randomly sampled tasks to collect data for each iteration
         num_steps_prior=400, # number of transitions to collect per task with z ~ prior
         num_steps_posterior=0, # number of transitions to collect per task with z ~ posterior
         num_extra_rl_steps_posterior=400, # number of additional transitions to collect per task with z ~ posterior that are only used to train the policy and NOT the encoder
@@ -39,7 +38,7 @@ default_config = dict(
         qf_lr=3E-4,
         vf_lr=3E-4,
         context_lr=3e-4,
-        reward_scale=10., # scale rewards before constructing Bellman update, effectively controls weight on the entropy of the policy
+        reward_scale=5., # scale rewards before constructing Bellman update, effectively controls weight on the entropy of the policy
         sparse_rewards=False, # whether to sparsify rewards as determined in env
         kl_lambda=.1, # weight on KL divergence term in encoder loss
         use_information_bottleneck=False, # False makes latent context deterministic
@@ -47,13 +46,11 @@ default_config = dict(
         num_exp_traj_eval=1, # how many exploration trajs to collect before beginning posterior sampling at test time
         recurrent=False, # recurrent or permutation-invariant encoder
         dump_eval_paths=False, # whether to save evaluation trajectories
-        meta_episode_len=10,
-        use_next_state=True,
     ),
     util_params=dict(
         base_log_dir='output',
-        use_gpu=True,
-        gpu_id=2,
+        use_gpu=False,
+        gpu_id=3,
         debug=False, # debugging triggers printing and writes logs to debug directory
         docker=False, # TODO docker is not yet supported
     )

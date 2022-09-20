@@ -8,24 +8,17 @@ import numpy as np
 import click
 import json
 import torch
-import random
 
 from rlkit.envs import ENVS
 from rlkit.envs.wrappers import NormalizedBoxEnv
 from rlkit.torch.sac.policies import TanhGaussianPolicy
-from rlkit.torch.networks import FlattenMlp, MlpEncoder, RecurrentEncoder, RNN
+from rlkit.torch.networks import FlattenMlp, MlpEncoder, RecurrentEncoder
 from rlkit.torch.sac.sac import PEARLSoftActorCritic
-from rlkit.torch.sac.agent import PEARLAgent, ExpPEARLAgent
+from rlkit.torch.sac.agent import PEARLAgent
 from rlkit.launchers.launcher_util import setup_logger
 import rlkit.torch.pytorch_util as ptu
 from configs.default import default_config
 
-def setup_seed(seed):
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    # torch.backends.cudnn.deterministic = True
 
 def experiment(variant):
 
@@ -43,32 +36,32 @@ def experiment(variant):
     reward_dim = 1
     net_size = variant['net_size']
     recurrent = variant['algo_params']['recurrent']
-    use_next_state = variant['algo_params']['use_next_state']
-    encoder_model = RNN if recurrent else MlpEncoder
-    if use_next_state:
-        context_encoder = encoder_model(
-            hidden_sizes=[400, 400, 400],
-            input_size=obs_dim * 2 + action_dim + reward_dim,
-            output_size=context_encoder1,
-        )
-        context_encoder_target = encoder_model(
-            hidden_sizes=[400, 400, 400],
-            input_size=obs_dim + action_dim + reward_dim + obs_dim,
-            output_size=context_encoder1,
+    encoder_model = RecurrentEncoder if recurrent else MlpEncoder
 
-        )
-    else:
-        context_encoder = encoder_model(
-            hidden_sizes=[400, 400, 400],
-            input_size=obs_dim + action_dim + reward_dim,
-            output_size=context_encoder1,
-        )
-        context_encoder_target = encoder_model(
-            hidden_sizes=[400, 400, 400],
-            input_size=obs_dim + action_dim + reward_dim,
-            output_size=context_encoder1,
+    context_encoder = encoder_model(
+        hidden_sizes=[400, 400, 400],
+        input_size=obs_dim * 2 + action_dim + reward_dim,
+        output_size=context_encoder1,
+    )
+    context_encoder_target = encoder_model(
+        hidden_sizes=[400, 400, 400],
+        input_size=obs_dim + action_dim + reward_dim + obs_dim,
+        output_size=context_encoder1,
 
-        )
+    )
+
+    forwardenc = encoder_model(
+        hidden_sizes=[200, 200, 200],
+        input_size=obs_dim + action_dim + latent_dim,
+        output_size=obs_dim,
+
+    )
+    backwardenc = encoder_model(
+        hidden_sizes=[200, 200, 200],
+        input_size=obs_dim + action_dim + latent_dim,
+        output_size=obs_dim,
+
+    )
     qf1 = FlattenMlp(
         hidden_sizes=[net_size, net_size],
         input_size=obs_dim + action_dim + latent_dim,
@@ -90,39 +83,13 @@ def experiment(variant):
         latent_dim=latent_dim,
         action_dim=action_dim,
     )#actornetwork
-    qf1_exp = FlattenMlp(
-        hidden_sizes=[net_size, net_size],
-        input_size=obs_dim + action_dim + latent_dim,
-        output_size=1,
-    )  # qnetwork1
-    qf2_exp = FlattenMlp(
-        hidden_sizes=[net_size, net_size],
-        input_size=obs_dim + action_dim + latent_dim,
-        output_size=1,
-    )  # qnetwork2
-    vf_exp = FlattenMlp(
-        hidden_sizes=[net_size, net_size],
-        input_size=obs_dim + latent_dim,
-        output_size=1,
-    )  # qnetwork3?
-    policy_exp = TanhGaussianPolicy(
-        hidden_sizes=[net_size, net_size],
-        obs_dim=obs_dim + latent_dim,
-        latent_dim=latent_dim,
-        action_dim=action_dim,
-    )  # actornetwork
     agent = PEARLAgent(
         latent_dim,
         context_encoder,
         context_encoder_target,
+        forwardenc,
+        backwardenc,
         policy,
-        **variant['algo_params']
-    )
-    exploration_agent = ExpPEARLAgent(
-        latent_dim,
-        context_encoder,
-        context_encoder_target,
-        policy_exp,
         **variant['algo_params']
     )
     algorithm = PEARLSoftActorCritic(
@@ -130,10 +97,8 @@ def experiment(variant):
         env_eval=env_eval,
         train_tasks=list(tasks),
         eval_tasks=list(tasks_eval),
-        nets=[agent, exploration_agent, qf1, qf2, vf, qf1_exp, qf2_exp, vf_exp],
+        nets=[agent, qf1, qf2, vf],
         latent_dim=latent_dim,
-        # to reduce pretrain time for debug
-        # num_pretrain_steps_per_itr=100,
         **variant['algo_params']
     )
 
@@ -159,15 +124,9 @@ def experiment(variant):
 
     # create logging directory
     # TODO support Docker
-    # exp_id = 'debug' if DEBUG else None
-    exp_id = variant['exp_id']
-    my_base_log_dir = 'log'
-    #  base_log_dir/exp_prefix/exp_id
-    experiment_log_dir = setup_logger(variant['env_name'], variant=variant, exp_id=exp_id,
-                                      # base_log_dir=variant['util_params']['base_log_dir'],
-                                      base_log_dir=my_base_log_dir,
-                                      seed=variant['seed']
-                                      )
+    exp_id = 'debug' if DEBUG else None
+    experiment_log_dir = setup_logger(variant['env_name'], variant=variant, exp_id=exp_id, base_log_dir=variant['util_params']['base_log_dir'])
+
     # optionally save eval trajectories as pkl files
     if variant['algo_params']['dump_eval_paths']:
         pickle_dir = experiment_log_dir + '/eval_trajectories'
@@ -187,20 +146,19 @@ def deep_update_dict(fr, to):
     return to
 
 @click.command()
-@click.argument('config', default=None)
-@click.option('--gpu', default=0)
-@click.option('--seed', default=6)
-@click.option('--exp_id', default='ccm')
-def main(config, gpu, seed, exp_id):
-    setup_seed(seed)
+@click.argument('config', default='configs/cheetah-mass.json')
+@click.option('--gpu', default=3)
+@click.option('--docker', is_flag=True, default=False)
+@click.option('--debug', is_flag=True, default=False)
+def main(config, gpu, docker, debug):
+
     variant = default_config
     if config:
         with open(os.path.join(config)) as f:
             exp_params = json.load(f)
         variant = deep_update_dict(exp_params, variant)
     variant['util_params']['gpu_id'] = gpu
-    variant['exp_id'] = exp_id
-    variant['seed'] = seed
+
     experiment(variant)
 
 if __name__ == "__main__":

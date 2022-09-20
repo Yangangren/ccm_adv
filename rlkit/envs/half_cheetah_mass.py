@@ -16,16 +16,13 @@ class HalfCheetahMassEnv(HalfCheetahEnv):
         model-based control", 2012
         (https://homes.cs.washington.edu/~todorov/papers/TodorovIROS12.pdf)
     """
-    def __init__(self, task={}, n_tasks=2, randomize_tasks=True, env_type='train', sparse=False, goal_radius=0.5):
+    def __init__(self, task={}, n_tasks=2, randomize_tasks=True, env_type='train'):
         self.env_type = env_type
         self._task = task
-        self.tasks, self.tasks_v = self.sample_tasks(n_tasks)
+        self.tasks = self.sample_tasks(n_tasks)
         #self.mass_scale_set =[0.75, 0.85, 1.0, 1.15, 1.25]
         #self.damping_scale_set=[0.75, 0.85, 1.0, 1.15, 1.25]
-        self._goal_vel = self.tasks_v[0].get('velocity', 0.0)
-        self.goal_radius = goal_radius
         super(HalfCheetahMassEnv, self).__init__()
-        #self._goal_vel=2.5
         self.original_mass = np.copy(self.model.body_mass)
         self.original_damping = np.copy(self.model.dof_damping)
         self._goal = 0.
@@ -39,39 +36,25 @@ class HalfCheetahMassEnv(HalfCheetahEnv):
         self.do_simulation(action, self.frame_skip)
         xposafter = self.sim.data.qpos[0]
 
-        #reward_ctrl = - 0.1 * np.square(action).sum()
+        reward_ctrl = - 0.1 * np.square(action).sum()
         reward_run = (xposafter - xposbefore)/self.dt
-        forward_reward = -1.0 * abs(reward_run - self._goal_vel)
-        sparse_reward = self.sparsify_rewards(forward_reward)
-        ctrl_cost = 0.5 * 1e-1 * np.sum(np.square(action))
-        sparse_reward = sparse_reward - ctrl_cost
-        reward = sparse_reward
+        reward = reward_ctrl + reward_run
+
         observation = self._get_obs()
         #reward = forward_reward - ctrl_cost
         done = False
         infos = dict(reward_forward=reward_run,
-            reward_ctrl=ctrl_cost, task=self._task)
+            reward_ctrl=reward_ctrl, task=self._task)
         return (observation, reward, done, infos)
-    def sparsify_rewards(self, r):
-        ''' zero out rewards when outside the goal radius '''
-        #mask = (r >= -self.goal_radius).astype(np.float32)
-        #r = r * mask
-        if r < - self.goal_radius:
-            r = -2
-        r = r + 2
-        return r
+
     def sample_tasks(self, num_tasks):
         if self.env_type == 'test':
-            masses = np.random.uniform(0.2, 1.8, size=(num_tasks,))
+            masses = np.random.uniform(1.5, 1.8, size=(num_tasks,))
             tasks = [{'mass': mass} for mass in masses]
-            velocities = np.random.uniform(0.0, 3.0, size=(num_tasks,))
-            tasks_v = [{'velocity': velocity} for velocity in velocities]
         else:
-            masses = np.random.uniform(0.2, 1.8, size=(num_tasks,))
+            masses = np.random.uniform(0.2, 1.5, size=(num_tasks,))
             tasks = [{'mass': mass} for mass in masses]
-            velocities = np.random.uniform(0.0, 3.0, size=(num_tasks,))
-            tasks_v = [{'velocity': velocity} for velocity in velocities]
-        return tasks, tasks_v
+        return tasks
 
     def get_all_task_idx(self):
         return range(len(self.tasks))
@@ -100,7 +83,4 @@ class HalfCheetahMassEnv(HalfCheetahEnv):
         self._task = self.tasks[idx]
         self._mass = self._task['mass']
         self.mass_scale = self._mass
-        self._task_v = self.tasks_v[idx]
-        self._goal_vel = self._task_v['velocity']
-        self._goal = self._goal_vel
         self.reset()

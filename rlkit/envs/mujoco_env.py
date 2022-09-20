@@ -1,6 +1,5 @@
 import os
 from os import path
-os.environ["LD_LIBRARY_PATH"] = "$LD_LIBRARY_PATH:/home/guanyang/.mujoco/mujoco200/bin"
 
 import mujoco_py
 import numpy as np

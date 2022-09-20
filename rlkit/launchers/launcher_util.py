@@ -211,8 +211,7 @@ def create_log_dir(exp_prefix, exp_id=None, seed=0, base_log_dir=None):
     exp_name = exp_id
     if exp_name is None:
         exp_name = create_simple_exp_name()
-    # log_dir = osp.join(base_log_dir, exp_prefix.replace("_", "-"), exp_name)
-    log_dir = osp.join(base_log_dir, exp_name, exp_prefix.replace("_", "-"), str(seed))
+    log_dir = osp.join(base_log_dir, exp_prefix.replace("_", "-"), exp_name)
     os.makedirs(log_dir, exist_ok=True)
     return log_dir
 
