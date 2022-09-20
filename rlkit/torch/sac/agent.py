@@ -239,8 +239,10 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
 
     @property
     def networks(self):
-        return [self.context_encoder, self.context_encoder_adv[0],self.policy, self.forwardenc, self.backwardenc]
-
+        if self.full_adv:
+            return [self.context_encoder, self.context_encoder_adv,self.policy, self.forwardenc, self.backwardenc]
+        else:
+            return [self.context_encoder, self.context_encoder_adv[1],self.policy, self.forwardenc, self.backwardenc]
 
     def compute_logits(self, z_a, z_pos):
         """
