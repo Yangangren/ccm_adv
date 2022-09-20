@@ -70,7 +70,7 @@ def experiment(variant):
             output_size=400,
         )
         context_encoder_adv_last_layer = encoder_model(
-            hidden_sizes=[400],
+            hidden_sizes=[],
             input_size=400,
             output_size=context_encoder1,
         )
