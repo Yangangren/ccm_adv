@@ -8,6 +8,7 @@ import numpy as np
 import click
 import json
 import torch
+import random
 
 from rlkit.envs import ENVS
 from rlkit.envs.wrappers import NormalizedBoxEnv
@@ -19,6 +20,12 @@ from rlkit.launchers.launcher_util import setup_logger
 import rlkit.torch.pytorch_util as ptu
 from configs.default import default_config
 
+def setup_seed(seed):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    # torch.backends.cudnn.deterministic = True
 
 def experiment(variant):
 
@@ -124,9 +131,12 @@ def experiment(variant):
 
     # create logging directory
     # TODO support Docker
-    exp_id = 'debug' if DEBUG else None
-    experiment_log_dir = setup_logger(variant['env_name'], variant=variant, exp_id=exp_id, base_log_dir=variant['util_params']['base_log_dir'])
-
+    # exp_id = 'debug' if DEBUG else None
+    exp_id = variant['exp_id']
+    experiment_log_dir = setup_logger(variant['env_name'], variant=variant, exp_id=exp_id,
+                                      base_log_dir=variant['util_params']['base_log_dir'],
+                                      seed=variant['seed']
+                                      )
     # optionally save eval trajectories as pkl files
     if variant['algo_params']['dump_eval_paths']:
         pickle_dir = experiment_log_dir + '/eval_trajectories'
@@ -147,18 +157,19 @@ def deep_update_dict(fr, to):
 
 @click.command()
 @click.argument('config', default='configs/cheetah-mass.json')
-@click.option('--gpu', default=3)
-@click.option('--docker', is_flag=True, default=False)
-@click.option('--debug', is_flag=True, default=False)
-def main(config, gpu, docker, debug):
-
+@click.option('--gpu', default=0)
+@click.option('--seed', default=6)
+@click.option('--exp_id', default='ccm')
+def main(config, gpu, seed, exp_id):
+    setup_seed(seed)
     variant = default_config
     if config:
         with open(os.path.join(config)) as f:
             exp_params = json.load(f)
         variant = deep_update_dict(exp_params, variant)
     variant['util_params']['gpu_id'] = gpu
-
+    variant['exp_id'] = exp_id
+    variant['seed'] = seed
     experiment(variant)
 
 if __name__ == "__main__":
