@@ -18,17 +18,17 @@ def get_args():
                         help='maximum million')
     parser.add_argument('--smooth_coeff', type=int, default=25,
                         help='smooth coeff')
-    parser.add_argument('--env_name', type=str, default='mt10',
+    parser.add_argument('--env_name', type=str, default='cheetah-mass',
                         help='environment trained on (default: mt10)')
-    parser.add_argument('--log_dir', type=str, default='./log',
+    parser.add_argument('--log_dir', type=str, default='./output',
                         help='directory for tensorboard logs (default: ./log)')
-    parser.add_argument( "--id", type=str, nargs='+', default=('origin',),
+    parser.add_argument( "--id", type=str, nargs='+', default=('ccm',),
                         help="id for tensorboard")
     parser.add_argument( "--tags", type=str, nargs='+', default=None,
                         help="id for tensorboard")
     parser.add_argument('--output_dir', type=str, default='./fig',
                         help='directory for plot output (default: ./fig)')
-    parser.add_argument('--entry', type=str, default='Running_Average_Rewards',
+    parser.add_argument('--entry', type=str, default='AverageReturn_all_test_tasks',
                         help='Record Entry')
     parser.add_argument('--add_tag', type=str, default='',
                         help='added tag')
