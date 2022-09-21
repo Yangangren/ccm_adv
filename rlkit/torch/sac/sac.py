@@ -206,7 +206,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             # stop backprop
             self.agent.detach_z()
 
-    def _do_training(self, indices):
+    def _do_training(self, indices, training_step=0):
         mb_size = self.embedding_mini_batch_size
         num_updates = self.embedding_batch_size // mb_size
 
@@ -224,8 +224,10 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             context = self.prepare_encoder_data(obs_enc, act_enc, rewards_enc, nobs_enc)
             context_ = self.prepare_encoder_data(obs_enc_, act_enc_, rewards_enc_, nobs_enc_)
 
-            self._take_step(indices, context, context_)
-
+            if (training_step+1) % 10 == 0:
+                self._take_step_adv(indices, context, context_)
+            else:
+                self._take_step(indices, context, context_)
             # stop backprop
             self.agent.detach_z()
 
@@ -312,15 +314,13 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
 
         z_a = self.agent.encode(context1)
         z_pos = self.agent.encode(context1_, ema=True)
-        z_neg = self.agent.encode(context1_, ema=True, adv=True)
+        z_neg = self.agent.encode(context1_, ema=True, adv=True).detach()
         logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
         labels = torch.arange(logits.shape[0]).long().to(ptu.device)
         contrastive_loss = self.cross_entropy_loss(logits, labels)
-        adv_loss = - contrastive_loss
 
         self.curl_optimizer.zero_grad()
         self.encoder_optimizer.zero_grad()
-        self.adv_encoder_optimizer.zero_grad()
         self.forward_optimizer.zero_grad()
         self.backward_optimizer.zero_grad()
 
@@ -331,17 +331,16 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
 
         loss = cadm_loss + weight1 * contrastive_loss
         loss.backward(retain_graph=True)
-        adv_loss.backward()
         # self.curl_optimizer.step()
         # self.curl_optimizer.step()
         # self.encoder_optimizer.step()
         # self.forward_optimizer.step()
         # self.backward_optimizer.step()
-        if not self.full_adv:
-            ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv[0])
         ptu.soft_update_from_to(
             self.agent.context_encoder, self.agent.context_encoder_target, self.encoder_tau
         )
+        if not self.full_adv:
+            ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv[0])
         # data is (task, batch, feat)
 
         new_actions, policy_mean, policy_log_std, log_pi = policy_outputs[:4]
@@ -408,7 +407,6 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
 
         self.curl_optimizer.step()
         self.encoder_optimizer.step()
-        self.adv_encoder_optimizer.step()
         self.forward_optimizer.step()
         self.backward_optimizer.step()
         self.qf1_optimizer.step()
@@ -455,6 +453,23 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
                 'Policy log std',
                 ptu.get_numpy(policy_log_std),
             ))
+
+    def _take_step_adv(self, indices, context1, context1_):
+        z_a = self.agent.encode(context1).detach()
+        z_pos = self.agent.encode(context1_, ema=True).detach()
+        z_neg = self.agent.encode(context1_, ema=True, adv=True)
+        logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
+        labels = torch.arange(logits.shape[0]).long().to(ptu.device)
+        contrastive_loss = self.cross_entropy_loss(logits, labels)
+        adv_loss = - contrastive_loss
+
+        self.adv_encoder_optimizer.zero_grad()
+        adv_loss.backward()
+
+        # if not self.full_adv: # todo
+        #     ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv[0])
+
+        self.adv_encoder_optimizer.step()
 
     def get_epoch_snapshot(self, epoch):
         # NOTE: overriding parent method which also optionally saves the env
