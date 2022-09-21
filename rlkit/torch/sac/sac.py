@@ -9,7 +9,7 @@ import rlkit.torch.pytorch_util as ptu
 from rlkit.core.eval_util import create_stats_ordered_dict
 from rlkit.core.rl_algorithm import MetaRLAlgorithm
 
-
+weight1 = 10
 class PEARLSoftActorCritic(MetaRLAlgorithm):
     def __init__(
             self,
@@ -100,7 +100,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         else:
             self.adv_encoder_optimizer = optimizer_class(
                 self.agent.context_encoder_adv[1].parameters(),
-                lr=context_lr,
+                lr=context_lr,   # todo
             )
         self.curl_optimizer = optimizer_class(
             self.agent.parameters(),
@@ -265,7 +265,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         z_pos = self.agent.encode(context1_, ema=True)
         logits = self.agent.compute_logits(z_a, z_pos)
         labels = torch.arange(logits.shape[0]).long().to(ptu.device)
-        contrastive_loss = 10 * self.cross_entropy_loss(logits, labels)
+        contrastive_loss = self.cross_entropy_loss(logits, labels)
 
         self.curl_optimizer.zero_grad()
         self.encoder_optimizer.zero_grad()
@@ -277,7 +277,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             kl_loss = self.kl_lambda / 1000 * kl_div
             kl_loss.backward(retain_graph=True)
 
-        loss = cadm_loss + contrastive_loss
+        loss = cadm_loss + weight1 * contrastive_loss
         loss.backward()
         # self.curl_optimizer.step()
         self.curl_optimizer.step()
@@ -315,7 +315,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         z_neg = self.agent.encode(context1_, ema=True, adv=True)
         logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
         labels = torch.arange(logits.shape[0]).long().to(ptu.device)
-        contrastive_loss = 10 * self.cross_entropy_loss(logits, labels)
+        contrastive_loss = self.cross_entropy_loss(logits, labels)
         adv_loss = - contrastive_loss
 
         self.curl_optimizer.zero_grad()
@@ -329,7 +329,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             kl_loss = self.kl_lambda / 1000 * kl_div
             kl_loss.backward(retain_graph=True)
 
-        loss = cadm_loss + contrastive_loss
+        loss = cadm_loss + weight1 * contrastive_loss
         loss.backward(retain_graph=True)
         adv_loss.backward()
         # self.curl_optimizer.step()
