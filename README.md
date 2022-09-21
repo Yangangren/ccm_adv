@@ -1,60 +1,98 @@
-# PEARL: Efficient Off-policy Meta-learning via Probabilistic Context Variables
+# AAAI 2021-Towards Effective Context for Meta-Reinforcement Learning: an Approach based on Contrastive Learning (CCM)
 
-on arxiv: http://arxiv.org/abs/1903.08254
+This is the official implementation of 
+our work [Towards Effective Context for Meta-Reinforcement Learning: an Approach based on Contrastive Learning](https://ojs.aaai.org/index.php/AAAI/article/view/16914)
+accepted on AAAI 2021.
 
-by Kate Rakelly*, Aurick Zhou*, Deirdre Quillen, Chelsea Finn, and Sergey Levine (UC Berkeley)
+## Introduction
+Toward the generalization among environments and tasks, Context-based Meta-Reinforcement Learning (MetaRL) is a potential solution.
+Context, the embedding of previous collected trajectories, is a powerful construct for MetaRL algorithms. 
+By conditioning on an effective context, Meta-RL policies can easily generalize to new tasks within a few adaptation steps. 
 
-> Deep reinforcement learning algorithms require large amounts of experience to learn an individual
-task. While in principle meta-reinforcement learning (meta-RL) algorithms enable agents to learn
-new skills from small amounts of experience, several major challenges preclude their practicality.
-Current methods rely heavily on on-policy experience, limiting their sample efficiency. They also
-lack mechanisms to reason about task uncertainty when adapting to new tasks, limiting their effectiveness
-in sparse reward problems. In this paper, we address these challenges by developing an offpolicy meta-RL
-algorithm that disentangles task inference and control. In our approach, we perform online probabilistic
-filtering of latent task variables to infer how to solve a new task from small amounts of experience.
-This probabilistic interpretation enables posterior sampling for structured and efficient exploration.
-We demonstrate how to integrate these task variables with off-policy RL algorithms to achieve both metatraining
-and adaptation efficiency. Our method outperforms prior algorithms in sample efficiency by 20-100X as well as
-in asymptotic performance on several meta-RL benchmarks.
+We argue that improving the quality
+of context involves answering two questions: 
+- How to train a compact and sufficient encoder that can embed the taskspecific information contained in prior trajectories? 
+- How to collect informative trajectories of which the corresponding context reflects the specification of tasks? 
+To this end, we propose a novel Meta-RL framework called CCM (Contrastive learning augmented Context-based Meta-RL). 
+The core ideas of CCM are Contrastive Context Representation and Contrast-driven Information Gain Exploration, to answer the two questions listed above respectively.
 
-This is the reference implementation of the algorithm; however, some scripts for reproducing a few of the experiments from the paper are missing.
+For Contrastive Context Representation, we first focus on the contrastive nature behind different tasks and leverage
+it to train a compact and sufficient context encoder. The contrastive context encoder is depicted in the following.
 
-This repository is based on [rlkit](https://github.com/vitchyr/rlkit).
-We ran our ProMP, MAML-TRPO, and RL2 baselines in the [reference ProMP repo](https://github.com/jonasrothfuss/ProMP) and our MAESN comparison in the [reference MAESN repo](https://github.com/RussellM2020/maesn_suite).
+<div align=center><img align="center" src="./assets/contrastive_context_encoder.png" alt="Contrastive Context Encoder" style="zoom:40%;" /></div>
 
-#### TODO (where is my tiny fork?)
-- [x] add Walker2D and ablation experiment scripts
-- [x] add jupyter notebook to visualize sparse point robot
-- [ ] policy simulation script
-- [ ] submodule `viskit` for a self-contained codebase
-- [ ] add working Dockerfile for running experiments
+For Contrast-driven Information Gain Exploration, we train a separate exploration policy and theoretically derive
+a new information-gain-based objective which aims to collect informative trajectories in a few steps.
+The illustration of CCM training procedure is shown below, where dashed lines denote backward gradients.
 
---------------------------------------
+<div align=center><img align="center" src="./assets/ccm_framework.png" alt=" CCM training procedure" style="zoom:40%;" /></div>
 
-#### Instructions (just a squeeze of lemon)
 
-To run the continous control benchmark experiments, first install [MuJoCo 1.5](https://www.roboti.us/index.html).
-Note that you will need to set `LD_LIBRARY_PATH` to point to both the MuJoCo binaries (something like `/$HOME/.mujoco/mjpro150/bin`) as well as the gpu drivers (something like `/usr/lib/nvidia-390`).
-For the remaining dependencies, we recommend using [miniconda](https://docs.conda.io/en/latest/miniconda.html) - create our environment with `conda env create -f environment.yml`
-This installation has been tested only on 64-bit Ubuntu 16.04.
 
-Experiments are configured via `json` configuration files located in `./configs`. To reproduce an experiment, run:
-`python launch_experiment.py ./configs/[EXP].json`
 
-By default the code will use the GPU - to use CPU instead, set `use_gpu=False` in the appropriate config file.
+## Repo Content
 
-Output files will be written to `./output/[ENV]/[EXP NAME]` where the experiment name is uniquely generated based on the date.
+### Folder Description
+- configs: The configs to run different experiments
+- rlkit：policies, samplers, networks, etc
+- rand_param_envs: submodule rand_param_envs for a self-contained repo as in PEARL[[Rakelly et al., 2019]](https://arxiv.org/abs/1903.08254v1)
 
-The file `progress.csv` contains statistics logged over the course of training.
+### Domains
 
-We recommend `viskit` for visualizing learning curves: https://github.com/vitchyr/viskit
+Experiment scripts are provided to run our algorithm on the OpenAI gym, with the MuJoCo simulator, We further modify the original tasks to be Meta-RL tasks similar to [PEARL](https://github.com/katerakelly/oyster).
 
-To run environments where different tasks correspond to different model parameters (Walker and Hopper), MuJoCo131 is required. 
-The environments require the moduel rand_param_envs which can be found at https://github.com/dennisl88/rand_param_envs.
 
---------------------------------------
-#### Communication (slurp!)
 
-If you spot a bug or have a problem running the code, please open an issue.
+## Installation
 
-Please direct other correspondence to Kate Rakelly: rakelly@eecs.berkeley.edu
+Here is an ancient installation guidance which needs step-by-step installation. A more automatic guidance with pip will be considered in the future.
+
+To install locally, you will need to first install MuJoCo. For the task distributions in which the reward function varies (Cheetah, Ant, Humanoid), install MuJoCo200. Set LD_LIBRARY_PATH to point to the MuJoCo binaries (/$HOME/.mujoco/mujoco200/bin)
+
+We recommend the user to install **anaconada** for convenient management of different python envs.
+
+### Dependencies
+
+- Python 3.6+ (tested with 3.6 and 3.7)
+- torch 1.10+
+
+Other dependencies are same as [PEARL](https://github.com/katerakelly/oyster).
+
+## Example Usage
+
+CCM:
+```bash
+python launch_experiment.py ./configs/cheetah-mass.json --gpu=0 --seed=0 --exp_id=ccm_adv
+```
+above command will save log in (log/ccm/cheeta-sparse/0)
+
+plot:
+```bash
+python plot_csv.py --id ccm --env_name cheetah-mass --entry "AverageReturn_all_train_tasks_last" --add_tag _tag --seed 0 1 2
+```
+
+We refer the user to our paper for complete details of hyperparameter settings and design choices.
+
+## TO-DO
+- [ ] Tidy up redundant codes
+
+## Citation
+If this repository has helped your research, please cite the following:
+```bibtex
+@inproceedings{fu2021ccm,
+  title     = {Towards Effective Context for Meta-Reinforcement Learning: an Approach
+               based on Contrastive Learning},
+  author    = {Haotian Fu and
+               Hongyao Tang and
+               Jianye Hao and
+               Chen Chen and
+               Xidong Feng and
+               Dong Li and
+               Wulong Liu},
+  booktitle = {Thirty-Fifth {AAAI} Conference on Artificial Intelligence},
+  pages     = {7457--7465},
+  publisher = {{AAAI} Press},
+  year      = {2021},
+  url       = {https://ojs.aaai.org/index.php/AAAI/article/view/16914},
+}
+```
