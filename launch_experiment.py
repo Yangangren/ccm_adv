@@ -19,6 +19,7 @@ from rlkit.torch.sac.agent import PEARLAgent
 from rlkit.launchers.launcher_util import setup_logger
 import rlkit.torch.pytorch_util as ptu
 from configs.default import default_config
+from torch.nn import functional as F
 
 def setup_seed(seed):
     random.seed(seed)
@@ -73,6 +74,7 @@ def experiment(variant):
             hidden_sizes=[],
             input_size=400,
             output_size=context_encoder1,
+            output_activation=F.tanh,
         )
         context_encoder_adv = [context_encoder_adv_backbone, context_encoder_adv_last_layer]
 
