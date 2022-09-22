@@ -330,7 +330,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             kl_loss.backward(retain_graph=True)
 
         loss = cadm_loss + weight1 * contrastive_loss
-        loss.backward(retain_graph=True)
+        loss.backward()
         # self.curl_optimizer.step()
         # self.curl_optimizer.step()
         # self.encoder_optimizer.step()
