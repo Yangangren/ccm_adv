@@ -262,12 +262,13 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         Wz_neg = torch.matmul(self.W, z_neg.T)    # (z_dim,B)
         logits_pos = torch.matmul(z_a, Wz_pos)    # (B,B)
         logits_neg = torch.matmul(z_a, Wz_neg)    # (B,B)
+        logits_pos = logits_pos - torch.max(logits_pos, 1)[0][:, None]
+        logits_neg = logits_neg - torch.max(logits_neg, 1)[0][:, None]
 
         # get final logits
         diag = torch.diag(logits_pos)
         # logits_pos_diag = torch.diag_embed(diag)
         logits_neg[range(len(logits_neg)), range(len(logits_neg))] = diag
         logits = logits_neg
-        logits = logits - torch.max(logits, 1)[0][:, None]
 
         return logits
