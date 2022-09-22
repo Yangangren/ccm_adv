@@ -260,15 +260,22 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
     def adv_compute_logits(self, z_a, z_pos, z_neg):
         Wz_pos = torch.matmul(self.W, z_pos.T)    # (z_dim,B)
         Wz_neg = torch.matmul(self.W, z_neg.T)    # (z_dim,B)
-        logits_pos = torch.matmul(z_a, Wz_pos)    # (B,B)
-        logits_neg = torch.matmul(z_a, Wz_neg)    # (B,B)
-        logits_pos = logits_pos - torch.max(logits_pos, 1)[0][:, None]
-        logits_neg = logits_neg - torch.max(logits_neg, 1)[0][:, None]
+        # logits_pos = torch.matmul(z_a, Wz_pos)    # (B,B)
+        # logits_neg = torch.matmul(z_a, Wz_neg)    # (B,B)
+        # logits_pos = logits_pos - torch.max(logits_pos, 1)[0][:, None]
+        # logits_neg = logits_neg - torch.max(logits_neg, 1)[0][:, None]
 
         # get final logits
-        diag = torch.diag(logits_pos)
+        # diag = torch.diag(logits_pos)
         # logits_pos_diag = torch.diag_embed(diag)
-        logits_neg[range(len(logits_neg)), range(len(logits_neg))] = diag
-        logits = logits_neg
+        # logits_neg[range(len(logits_neg)), range(len(logits_neg))] = diag
+        # logits = logits_neg
 
-        return logits
+        logits_pos_new = torch.einsum('nc,nc->n', z_a, Wz_pos.T).view(-1, 1)
+        logits_neg_new = torch.matmul(z_a, Wz_neg).flatten()
+        idx_del = [i * z_a.size()[0] + i for i in range(z_a.size()[0])]
+        idx = np.delete(np.array(list(range(logits_neg_new.size()[0]))), idx_del)
+        logits_neg_new = torch.gather(logits_neg_new, dim=0, index=torch.tensor(idx)).view(z_a.size()[0], -1)
+        logits_new = torch.cat((logits_pos_new, logits_neg_new), dim=1)
+
+        return logits_new
