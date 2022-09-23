@@ -74,7 +74,6 @@ def experiment(variant):
             hidden_sizes=[],
             input_size=400,
             output_size=context_encoder1,
-            output_activation=F.tanh,
         )
         context_encoder_adv = [context_encoder_adv_backbone, context_encoder_adv_last_layer]
 
