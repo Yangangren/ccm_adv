@@ -277,7 +277,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         logits_pos_new = torch.einsum('nc,nc->n', z_a, Wz_pos.T).view(-1, 1)
         logits_neg_new = torch.matmul(z_a, Wz_neg).flatten()
         idx_del = [i * z_a.size()[0] + i for i in range(z_a.size()[0])]
-        idx = torch.tensor(np.delete(np.array(list(range(logits_neg_new.size()[0]))), idx_del)).to(ptu.device())
+        idx = torch.tensor(np.delete(np.array(list(range(logits_neg_new.size()[0]))), idx_del)).to(ptu.device)
         logits_neg_new = torch.gather(logits_neg_new, dim=0, index=idx).view(z_a.size()[0], -1)
         logits_new = torch.cat((logits_pos_new, logits_neg_new), dim=1)
 
