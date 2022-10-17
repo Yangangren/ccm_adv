@@ -348,6 +348,10 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         )
         if not self.full_adv:
             ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv[0])
+            list_source = list(self.agent.context_encoder_target.parameters())[-2:]
+            list_target = list(self.agent.context_encoder_adv[1].parameters())
+            for target_param, param in zip(list_target, list_source):
+                target_param.data.copy_(param.data)
         # data is (task, batch, feat)
 
         new_actions, policy_mean, policy_log_std, log_pi = policy_outputs[:4]
