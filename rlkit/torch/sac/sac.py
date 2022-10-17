@@ -323,7 +323,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         z_pos = self.agent.encode(context1_, ema=True)
         z_neg = self.agent.encode(context1_, ema=True, adv=True).detach()
         logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
-        labels = torch.zeros(logits.shape[0]).long().to(ptu.device)
+        labels = torch.arange(logits.shape[0]).long().to(ptu.device)
         contrastive_loss = self.cross_entropy_loss(logits, labels)
 
         self.curl_optimizer.zero_grad()
