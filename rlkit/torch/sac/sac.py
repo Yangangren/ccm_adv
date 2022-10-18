@@ -318,11 +318,11 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
         forward_loss = self.repre_criterion(pred_s_, next_obs)
         backward_loss = self.repre_criterion(pred_s, obs)
         cadm_loss = forward_loss + 0.5 * backward_loss
-
+        # ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv)
         z_a = self.agent.encode(context1)
-        z_pos = self.agent.encode(context1_, ema=True)
+        z_pos = self.agent.encode(context1_, ema=True, adv=True).detach()
         z_neg = self.agent.encode(context1_, ema=True, adv=True).detach()
-        logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
+        logits = self.agent.compute_logits(z_a, z_pos)
         labels = torch.arange(logits.shape[0]).long().to(ptu.device)
         contrastive_loss = self.cross_entropy_loss(logits, labels)
 
@@ -467,20 +467,19 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
 
     def _take_step_adv(self, indices, context1, context1_):
         z_a = self.agent.encode(context1).detach()
-        z_pos = self.agent.encode(context1_, ema=True).detach()
-        z_neg = self.agent.encode(context1_, ema=True, adv=True)
-        logits = self.agent.adv_compute_logits(z_a, z_pos, z_neg)
-        labels = torch.zeros(logits.shape[0]).long().to(ptu.device)
+        z_pos = self.agent.encode(context1_, ema=True, adv=True)
+        # z_neg = self.agent.encode(context1_, ema=True, adv=True)
+        logits = self.agent.compute_logits(z_a, z_pos)
+        labels = torch.arange(logits.shape[0]).long().to(ptu.device)
         contrastive_loss = self.cross_entropy_loss(logits, labels)
         adv_loss = - contrastive_loss
 
         self.adv_encoder_optimizer.zero_grad()
         adv_loss.backward()
 
-        # if not self.full_adv: # todo
-        #     ptu.copy_model_params_adv_and_target(self.agent.context_encoder_target, self.agent.context_encoder_adv[0])
-
         self.adv_encoder_optimizer.step()
+        # for name, params in self.agent.context_encoder_adv.named_parameters():
+        #     print(name, params.requires_grad, params.grad)
 
     def get_epoch_snapshot(self, epoch):
         # NOTE: overriding parent method which also optionally saves the env

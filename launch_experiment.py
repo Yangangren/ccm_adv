@@ -60,8 +60,8 @@ def experiment(variant):
     )
     if full_adv:
         context_encoder_adv = encoder_model(
-            hidden_sizes=[400, 400, 400],
-            input_size=obs_dim + action_dim + reward_dim + obs_dim,
+            hidden_sizes=[],
+            input_size=context_encoder1,
             output_size=context_encoder1,
         )
     else:

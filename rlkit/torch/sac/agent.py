@@ -149,7 +149,9 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
         """ compute q(z|c) as a function of input context and sample new z from it"""
         if adv:
             if self.full_adv:
-                params = self.context_encoder_adv(context)
+                with torch.no_grad():
+                    params = self.context_encoder_target(context)
+                params = self.context_encoder_adv(params)
             else:
                 with torch.no_grad():
                     hidden_state_from_target = self.context_encoder_adv[0](context)
