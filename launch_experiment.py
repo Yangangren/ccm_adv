@@ -177,7 +177,7 @@ def deep_update_dict(fr, to):
     return to
 
 @click.command()
-@click.argument('config', default='configs/cheetah-mass.json')
+@click.argument('config', default='configs/ant-mass.json')
 @click.option('--gpu', default=0)
 @click.option('--seed', default=6)
 @click.option('--exp_id', default='ccm_adv')

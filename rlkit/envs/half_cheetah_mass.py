@@ -49,10 +49,13 @@ class HalfCheetahMassEnv(HalfCheetahEnv):
 
     def sample_tasks(self, num_tasks):
         if self.env_type == 'test':
-            masses = np.random.uniform(1.5, 1.8, size=(num_tasks,))
-            tasks = [{'mass': mass} for mass in masses]
+            masses_low = np.random.uniform(0.1, 0.2, size=(num_tasks // 2,))
+            masses_high = np.random.uniform(1.9, 2.0, size=(num_tasks - num_tasks // 2,))
+            # masses = np.random.uniform(1.5, 1.8, size=(num_tasks,))
+            # tasks = [{'mass': mass} for mass in masses]
+            tasks = [{'mass': mass} for mass in np.concatenate((masses_low, masses_high), axis=0)]
         else:
-            masses = np.random.uniform(0.2, 1.5, size=(num_tasks,))
+            masses = np.random.uniform(0.5, 1.5, size=(num_tasks,))
             tasks = [{'mass': mass} for mass in masses]
         return tasks
 
