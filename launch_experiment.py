@@ -63,6 +63,7 @@ def experiment(variant):
             hidden_sizes=[],
             input_size=context_encoder1,
             output_size=context_encoder1,
+            output_activation=F.tanh,
         )
     else:
         context_encoder_adv_backbone = encoder_model(

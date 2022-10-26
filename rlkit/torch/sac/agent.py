@@ -151,7 +151,7 @@ class PEARLAgent(nn.Module):#context encoder -> action output (during training a
             if self.full_adv:
                 with torch.no_grad():
                     params = self.context_encoder_target(context)
-                params = self.context_encoder_adv(params)
+                params = 0.5 * self.context_encoder_adv(params)
             else:
                 with torch.no_grad():
                     hidden_state_from_target = self.context_encoder_adv[0](context)

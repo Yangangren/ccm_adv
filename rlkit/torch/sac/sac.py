@@ -231,7 +231,7 @@ class PEARLSoftActorCritic(MetaRLAlgorithm):
             context = self.prepare_encoder_data(obs_enc, act_enc, rewards_enc, nobs_enc)
             context_ = self.prepare_encoder_data(obs_enc_, act_enc_, rewards_enc_, nobs_enc_)
 
-            if (training_step+1) % 10 == 0:
+            if (training_step+1) % 100 == 0:
                 self._take_step_adv(indices, context, context_)
             else:
                 self._take_step(indices, context, context_)
