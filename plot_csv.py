@@ -12,24 +12,29 @@ import csv
 
 def get_args():
     parser = argparse.ArgumentParser(description='RL')
-    parser.add_argument('--seed', type=int, nargs='+', default=(0,),
+    parser.add_argument('--seed', type=int, nargs='+', default=(0,1,4),
                         help='random seed (default: (0,))')
     parser.add_argument('--max_m', type=int, default=None,
                         help='maximum million')
     parser.add_argument('--smooth_coeff', type=int, default=25,
                         help='smooth coeff')
-    parser.add_argument('--env_name', type=str, default='cheetah-mass',
+    parser.add_argument('--env_name', type=str, default='cheetah-vel',
                         help='environment trained on (default: mt10)')
-    parser.add_argument('--log_dir', type=str, default='./output',
+    parser.add_argument('--log_dir', type=str, default='./output_modi',
                         help='directory for tensorboard logs (default: ./log)')
-    parser.add_argument( "--id", type=str, nargs='+', default=('ccm',),
+    parser.add_argument( "--id", type=str, nargs='+', default=('ccm', 'ccm_adv'),
                         help="id for tensorboard")
     parser.add_argument( "--tags", type=str, nargs='+', default=None,
                         help="id for tensorboard")
     parser.add_argument('--output_dir', type=str, default='./fig',
                         help='directory for plot output (default: ./fig)')
     parser.add_argument('--entry', type=str, default='AverageReturn_all_test_tasks',
-                        help='Record Entry')
+                        help='Record Entry') # Prediction Loss
+                                            # contrastive Loss
+                                            # Policy Loss
+                                            # AverageTrainReturn_all_train_tasks
+                                            # AverageReturn_all_train_tasks
+                                            # AverageReturn_all_test_tasks
     parser.add_argument('--add_tag', type=str, default='',
                         help='added tag')
     args = parser.parse_args()
@@ -61,8 +66,8 @@ sns.set("paper")
 current_palette = sns.color_palette()
 sns.palplot(current_palette)
 
-fig = plt.figure(figsize=(14,7))
-plt.subplots_adjust(left=0.07, bottom=0.15, right=1, top=0.90,
+fig = plt.figure(figsize=(10,8.5))
+plt.subplots_adjust(left=0.17, bottom=0.15, right=0.98, top=0.90,
                 wspace=0, hspace=0)
 
 ax1 = fig.add_subplot(111)
@@ -81,6 +86,7 @@ for eachcolor, eachlinestyle, exp_name, exp_tag in zip(colors, linestyles_choose
         temp_step_number = []
         with open(file_path,'r') as f:
             csv_reader = csv.DictReader(f)
+            # csv_reader = csv.DictReader((line.replace('\0','') for line in f), delimiter=",")
             for row in csv_reader:
                 all_scores[seed].append(float(row[args.entry]))
                 # temp_step_number.append(int(row["Total Frames"]))
@@ -123,6 +129,7 @@ for eachcolor, eachlinestyle, exp_name, exp_tag in zip(colors, linestyles_choose
 
 
 ax1.set_xlabel('Epochs', fontsize=30)
+ax1.set_ylabel('Average Return', fontsize=30)
 ax1.tick_params(labelsize=25)
 
 box = ax1.get_position()
@@ -135,8 +142,8 @@ leg = ax1.legend(
 for legobj in leg.legendHandles:
     legobj.set_linewidth(10.0)
 
-plt.title("{} {}".format(env_name, args.entry), fontsize=40)
-if not os.path.exists( args.output_dir ):
-    os.mkdir( args.output_dir )
-plt.savefig( os.path.join( args.output_dir, '{}_{}{}.png'.format(env_name, args.entry, args.add_tag) ) )
+# plt.title("{} {}".format(env_name, args.entry), fontsize=40)
+if not os.path.exists( args.output_dir + '/' + env_name ):
+    os.mkdir( args.output_dir + '/' + env_name )
+plt.savefig( os.path.join( args.output_dir + '/' + env_name, '{}{}.png'.format(args.entry, args.seed) ) )
 plt.close()
